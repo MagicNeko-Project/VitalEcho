@@ -1,35 +1,43 @@
-# VitalEcho
+# Electronic Life Status Feedback Device (电子生命状态反馈器)
 
-VitalEcho is an Android application and backend system designed to dynamically update a Telegram username based on the device's network connection status.
+> *Linking organic pulse to the digital void.*
 
-## Architecture
+## Overview
 
-The system consists of two main components:
+The **Electronic Life Status Feedback Device** (电子生命状态反馈器) is a cybernetic link system designed to synchronize your physical connectivity status with your digital projection in the Telegram network. It serves as a heartbeat monitor for your electronic existence, broadcasting your operational state to the ether.
 
-1.  **Android Application**:
-    *   Monitors network connectivity (WiFi vs. Mobile Data).
-    *   Sends heartbeats to the backend.
-    *   Reports network status changes.
+## System Architecture
 
-2.  **Backend (Relay Server + Userbot)**:
-    *   Receives status updates and heartbeats.
-    *   Monitors for heartbeat timeouts (Offline mode).
-    *   Connects to Telegram using a Userbot to update the username.
+The system operates via a dual-node configuration:
 
-## Features
+### 1. The Sensor Node (Android Terminal)
+Located at the root of your repository (`/app`), this neural interface resides on your mobile device.
+*   **Function**: Continuously scans local network flux (WiFi vs. Cellular).
+*   **Transmission**: Emits "heartbeat" pulses to the central relay.
+*   **Directives**: Detects "Action Mode" (Mobile Data) and "Standby Mode" (WiFi).
 
-*   **Action Mode**: Telegram username updated when using Mobile Data.
-*   **Standby Mode**: Telegram username updated when using WiFi.
-*   **Offline Mode**: Telegram username updated when device stops sending heartbeats.
+### 2. The Central Core (Backend Relay)
+Located in the `/backend` sector.
+*   **Function**: Receives telemetry from the Sensor Node.
+*   **Analysis**: Monitors pulse continuity. If the pulse ceases, it declares "Offline Mode" (Critical Disconnection).
+*   **Execution**: Manipulates the Telegram user profile via the Userbot protocol to reflect the current status suffix.
 
-## Setup
+## Operational Modes
 
-### Backend
-1.  Navigate to `backend/`.
-2.  Install dependencies: `pip install -r requirements.txt`.
-3.  Configure environment variables (API_ID, API_HASH, etc.).
-4.  Run the server.
+*   **Action Mode (行动模式)**: Engaged when the entity is mobile, utilizing cellular data pathways.
+*   **Standby Mode (待机模式)**: Engaged when the entity is stationary, tethered to a stable WiFi grid.
+*   **Offline Mode (离线模式)**: Engaged when signal is lost or the biological unit ceases transmission.
 
-### Android
-1.  Open `android/` in Android Studio.
-2.  Build and deploy to device.
+## Deployment Protocols
+
+### Backend Core Initialization
+1.  Navigate to the `backend/` sector.
+2.  Install neural dependencies: `pip install -r requirements.txt`.
+3.  Calibrate environment variables (`API_ID`, `API_HASH`, etc.) in `.env`.
+4.  Ignite the core: Run the server.
+
+### Android Terminal Integration
+1.  Open the repository root in your Android Studio IDE.
+2.  The system will recognize the `app` module and root `build.gradle`.
+3.  Compile the APK and fuse it with your mobile device.
+4.  Grant necessary permissions for background network scanning and accessibility services to ensure the link remains unbroken.
