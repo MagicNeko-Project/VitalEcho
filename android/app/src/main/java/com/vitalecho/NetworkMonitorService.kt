@@ -33,7 +33,7 @@ class NetworkMonitorService : Service() {
         .build()
 
     // Configuration
-    private val SERVER_URL = "http://YOUR_SERVER_IP:8000"
+    private val SERVER_URL = "https://vitalecho.kusa.dev"
     private val API_TOKEN = "secret"
 
     companion object {
