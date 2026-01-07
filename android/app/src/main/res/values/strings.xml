@@ -1,3 +1,10 @@
 <resources>
     <string name="app_name">VitalEcho</string>
+    <string name="accessibility_service_description">Keep VitalEcho Service Alive</string>
+    <string name="mode_auto">自动模式</string>
+    <string name="mode_manual">手动模式</string>
+    <string name="status_action">行动模式</string>
+    <string name="status_standby">待机模式</string>
+    <string name="status_offline">离线模式</string>
+    <string name="service_running">服务正在运行...</string>
 </resources>

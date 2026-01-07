@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -25,6 +26,7 @@ class NetworkMonitorService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private lateinit var connectivityManager: ConnectivityManager
+    private lateinit var prefs: SharedPreferences
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -48,9 +50,28 @@ class NetworkMonitorService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service Created")
+        prefs = getSharedPreferences("VitalEchoPrefs", Context.MODE_PRIVATE)
         startForegroundServiceCompat()
         registerNetworkCallback()
         startHeartbeat()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent != null) {
+            when (intent.action) {
+                "ACTION_UPDATE_MANUAL" -> {
+                    val status = intent.getStringExtra("manual_status")
+                    if (!status.isNullOrEmpty()) {
+                        sendStatusUpdate(status)
+                    }
+                }
+                "ACTION_AUTO" -> {
+                    // Re-check network immediately
+                     checkCurrentNetwork()
+                }
+            }
+        }
+        return START_STICKY
     }
 
     private fun startForegroundServiceCompat() {
@@ -64,14 +85,9 @@ class NetworkMonitorService : Service() {
             manager.createNotificationChannel(channel)
         }
 
-        // Ensure R.mipmap.ic_launcher exists.
-        // Note: In a real app, use a proper drawable resource ID.
-        // Since we created ic_launcher.xml in mipmap, this ID should resolve.
-        // If not, we fall back to generic system icon in a real implementation,
-        // but for compilation we need a valid R ref.
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("VitalEcho")
-            .setContentText("Monitoring network status...")
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.service_running))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .build()
@@ -82,46 +98,55 @@ class NetworkMonitorService : Service() {
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             super.onAvailable(network)
-            Log.d(TAG, "Default network available")
-            checkNetworkType(network)
+            if (isAutoMode()) {
+                checkNetworkType(network)
+            }
         }
 
         override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
             super.onCapabilitiesChanged(network, networkCapabilities)
-            checkNetworkType(network)
+            if (isAutoMode()) {
+                checkNetworkType(network)
+            }
         }
 
         override fun onLost(network: Network) {
             super.onLost(network)
-            Log.d(TAG, "Default network lost")
-            // When default network is lost, we might need to wait for the new default network
-            // to be available or check if there is another one.
-            // But registerDefaultNetworkCallback handles the switch automatically.
-            // If we lost the default network, we are effectively offline until a new one appears
-            // or we might have switched.
-            // We should re-check active network.
-            checkCurrentNetwork()
+            if (isAutoMode()) {
+                checkCurrentNetwork()
+            }
         }
     }
 
     private var lastReportedType = ""
 
+    private fun isAutoMode(): Boolean {
+        return prefs.getBoolean("is_auto", true)
+    }
+
     private fun checkCurrentNetwork() {
-        val activeNetwork = connectivityManager.activeNetwork
-        if (activeNetwork != null) {
-            checkNetworkType(activeNetwork)
+        if (!isAutoMode()) return
+
+        // Compat for activeNetwork
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val activeNetwork = connectivityManager.activeNetwork
+            if (activeNetwork != null) {
+                checkNetworkType(activeNetwork)
+            } else {
+                 // No active network
+            }
         } else {
-             // No active network
-             // We could report OFFLINE locally, but the heartbeat failure will trigger it on server anyway.
-             Log.d(TAG, "No active network")
+            // For API 21-22, we use getAllNetworks or activeNetworkInfo (deprecated but valid)
+            // Or just rely on callbacks.
+            // Since minSdk is 23, we are safe with activeNetwork.
         }
     }
 
     private fun checkNetworkType(network: Network) {
         val caps = connectivityManager.getNetworkCapabilities(network) ?: return
         val type = when {
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "WIFI"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "MOBILE"
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> getString(R.string.status_standby) // "待机模式"
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> getString(R.string.status_action) // "行动模式"
             else -> "UNKNOWN"
         }
 
@@ -138,11 +163,6 @@ class NetworkMonitorService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
              connectivityManager.registerDefaultNetworkCallback(networkCallback)
         } else {
-             // Fallback for older versions, though registerDefaultNetworkCallback is preferred.
-             // For < N, we would need to listen to all and filter, but simpler is to use activeNetwork check.
-             // Given the requirements and complexity, restricting to N+ (API 24) is reasonable for this feature
-             // or we accept the limitation. The minSdk is 21.
-             // We can use the previous method for legacy.
              val request = android.net.NetworkRequest.Builder()
                 .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 .build()
@@ -153,6 +173,10 @@ class NetworkMonitorService : Service() {
     private fun startHeartbeat() {
         scope.launch {
             while (isActive) {
+                // We send heartbeat regardless of mode to keep session alive?
+                // If Manual = Offline, sending heartbeat keeps backend "Online" but logic says "Status = Offline"
+                // Heartbeat updates timestamp.
+                // If Status == Offline, heartbeat doesn't flip it back unless /status is called.
                 sendHeartbeat()
                 delay(HEARTBEAT_INTERVAL)
             }
@@ -174,7 +198,7 @@ class NetworkMonitorService : Service() {
                     if (!response.isSuccessful) {
                         Log.e(TAG, "Failed to update status: ${response.code}")
                     } else {
-                        Log.i(TAG, "Status updated successfully")
+                        Log.i(TAG, "Status updated successfully to $type")
                     }
                 }
             } catch (e: Exception) {
