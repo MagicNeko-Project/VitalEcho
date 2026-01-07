@@ -12,6 +12,9 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
@@ -26,7 +29,10 @@ class NetworkMonitorService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private lateinit var connectivityManager: ConnectivityManager
+    private lateinit var powerManager: PowerManager
     private lateinit var prefs: SharedPreferences
+    @Volatile
+    private var isScreenOn = true
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -51,6 +57,10 @@ class NetworkMonitorService : Service() {
         super.onCreate()
         Log.d(TAG, "Service Created")
         prefs = getSharedPreferences("VitalEchoPrefs", Context.MODE_PRIVATE)
+        powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        isScreenOn = powerManager.isInteractive
+
+        registerScreenReceiver()
         startForegroundServiceCompat()
         registerNetworkCallback()
         startHeartbeat()
@@ -147,6 +157,16 @@ class NetworkMonitorService : Service() {
     }
 
     private fun checkNetworkType(network: Network) {
+        // Ensure we are checking the active default network to avoid race conditions
+        // where a secondary network (e.g. Cellular) updates while WiFi is primary.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val activeNetwork = connectivityManager.activeNetwork
+            if (activeNetwork != null && activeNetwork != network) {
+                // The callback network is not the active default network. Ignore.
+                return
+            }
+        }
+
         val caps = connectivityManager.getNetworkCapabilities(network) ?: return
         val type = when {
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> getString(R.string.status_standby) // "待机模式"
@@ -177,11 +197,11 @@ class NetworkMonitorService : Service() {
     private fun startHeartbeat() {
         scope.launch {
             while (isActive) {
-                // We send heartbeat regardless of mode to keep session alive?
-                // If Manual = Offline, sending heartbeat keeps backend "Online" but logic says "Status = Offline"
-                // Heartbeat updates timestamp.
-                // If Status == Offline, heartbeat doesn't flip it back unless /status is called.
-                sendHeartbeat()
+                // Only send heartbeat if screen is ON.
+                // If screen is OFF for a long time (Backend Timeout), Backend will switch to Offline Mode.
+                if (isScreenOn) {
+                    sendHeartbeat()
+                }
                 delay(HEARTBEAT_INTERVAL)
             }
         }
@@ -233,8 +253,33 @@ class NetworkMonitorService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        unregisterReceiver(screenReceiver)
         connectivityManager.unregisterNetworkCallback(networkCallback)
         job.cancel()
         Log.d(TAG, "Service Destroyed")
+    }
+
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                isScreenOn = false
+                Log.d(TAG, "Screen OFF - Stopping Heartbeats")
+            } else if (intent?.action == Intent.ACTION_SCREEN_ON) {
+                isScreenOn = true
+                Log.d(TAG, "Screen ON - Resuming Heartbeats")
+                // Immediately check network state to ensure we are up to date
+                checkCurrentNetwork()
+                // Force a heartbeat immediately?
+                sendHeartbeat()
+            }
+        }
+    }
+
+    private fun registerScreenReceiver() {
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        registerReceiver(screenReceiver, filter)
     }
 }
