@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from telethon import TelegramClient, functions
+from telethon import TelegramClient, functions, types
 
 # Load environment variables
 load_dotenv()
@@ -16,9 +16,6 @@ load_dotenv()
 # Configuration
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
-# For Userbot we just need API_ID and API_HASH and session login.
-# We will use a session file 'userbot.session'.
-# SERVER_API_TOKEN is for the Android app to authenticate.
 SERVER_API_TOKEN = os.getenv("SERVER_API_TOKEN", "secret")
 
 # Logging setup
@@ -28,12 +25,12 @@ logger = logging.getLogger("VitalEcho")
 # Constants
 HEARTBEAT_TIMEOUT = 30  # seconds
 CHECK_INTERVAL = 10     # seconds
+SEPARATOR = " - "
 
 # Global State
 class SystemState:
     last_heartbeat: float = 0
     current_status: str = "OFFLINE" # WIFI, MOBILE, OFFLINE
-    # To avoid repeated updates to Telegram
     last_updated_username: str = ""
 
 state = SystemState()
@@ -49,11 +46,16 @@ class MockTelegramClient:
     async def disconnect(self):
         logger.info("Mock Telegram Client disconnected.")
 
+    async def get_me(self):
+        # Return a mock User object
+        class MockUser:
+            first_name = "Mock"
+            last_name = "User"
+        return MockUser()
+
     async def __call__(self, request):
-        # Determine the target username from the UpdateUsername request (mocked)
-        # In Telethon: client(functions.account.UpdateUsernameRequest(username="..."))
-        if isinstance(request, functions.account.UpdateUsernameRequest):
-            logger.info(f"[MOCK] Updating username to: {request.username}")
+        if isinstance(request, functions.account.UpdateProfileRequest):
+            logger.info(f"[MOCK] Updating profile: First='{request.first_name}', Last='{request.last_name}'")
         return True
 
 # Initialize Telegram Client
@@ -63,51 +65,90 @@ else:
     logger.warning("API_ID or API_HASH missing. Using Mock Telegram Client.")
     client = MockTelegramClient()
 
-
 async def update_telegram_username(status: str):
-    """Updates the Telegram username based on the status."""
-    new_username = ""
+    """Updates the Telegram profile name based on the status."""
+    mode_name = ""
     if status == "MOBILE":
-        new_username = "Action_Mode"
+        mode_name = "Action Mode"
     elif status == "WIFI":
-        new_username = "Standby_Mode"
+        mode_name = "Standby Mode"
     elif status == "OFFLINE":
-        new_username = "Offline_Mode"
+        mode_name = "Offline Mode"
     else:
         return
 
-    # Assuming we append the status or just set it.
-    # Telegram usernames must be unique, so we might need a prefix or suffix.
-    # For this demo, let's assume we update the "Last Name" or "Bio" might be safer/easier,
-    # but the requirement says "Username".
-    # Updating actual @username is risky (rate limits, availability).
-    # Maybe the requirement meant "Display Name" (First/Last Name)?
-    # "Telegram Username" usually means the @handle.
-    # "Action Mode" as a username is definitely taken.
-    # The prompt says "update Telegram username to 'Action Mode'".
-    # It likely means "Last Name" or "Bio" or a custom title.
-    # I will assume "Last Name" for safety because changing @username frequently is bad practice/restricted.
-    # However, strict interpretation: "update username".
-    # I'll try to update the "About" (Bio) or "Last Name" as a proxy if Username fails or for the sake of the demo.
-    # Let's stick to updating the First Name/Last Name as it's more visual and less permanent.
-    # Actually, let's try to update the profile "Last Name".
-
-    # But strictly following "Update Telegram Username" might mean the handle.
-    # I will interpret it as "First Name" + "Last Name" modification, e.g. "John (Action Mode)".
-
-    # Telethon UpdateProfileRequest: first_name, last_name, about.
-
-    if state.last_updated_username == new_username:
+    # Check if we actually need to update to avoid spamming the API
+    # But checking internal state isn't enough if the user manually changed their name.
+    # However, for performance, we can skip if state matches.
+    if state.last_updated_username == mode_name:
         return
 
     try:
-        # We will use UpdateProfileRequest to change the last name to the mode.
-        # This is safer than changing the username handle.
-        await client(functions.account.UpdateProfileRequest(
-            last_name=f"({new_username.replace('_', ' ')})"
-        ))
-        state.last_updated_username = new_username
-        logger.info(f"Updated Telegram profile to: {new_username}")
+        me = await client.get_me()
+        if not me:
+            logger.error("Could not fetch user profile.")
+            return
+
+        current_first = me.first_name or ""
+        current_last = me.last_name or ""
+
+        new_first = current_first
+        new_last = current_last
+
+        # Helper to attach mode after separator
+        def attach_mode(base, mode):
+            return f"{base}{SEPARATOR}{mode}"
+
+        # Logic:
+        # 1. Check if separator exists in Last Name. If so, replace suffix.
+        # 2. Else check if separator exists in First Name. If so, replace suffix.
+        # 3. Else, append to Last Name (or set Last Name if empty).
+
+        updated = False
+
+        if SEPARATOR in current_last:
+            base = current_last.split(SEPARATOR)[0]
+            candidate = attach_mode(base, mode_name)
+            if current_last != candidate:
+                new_last = candidate
+                updated = True
+            # Case where it matches exactly is handled by 'updated = False' default
+        elif SEPARATOR in current_first:
+            base = current_first.split(SEPARATOR)[0]
+            candidate = attach_mode(base, mode_name)
+            if current_first != candidate:
+                new_first = candidate
+                updated = True
+        else:
+            # Separator not found in either.
+            # Append to Last Name.
+            # If Last Name is empty, it becomes " - Mode" (which is what we want? Or just "Mode"?)
+            # User said: "ensure it only adds the corresponding character after the - symbol"
+            # If I set Last Name to " - Mode", it fits the pattern.
+
+            # Check if current_last is just empty or None
+            base = current_last if current_last else ""
+            candidate = attach_mode(base, mode_name)
+
+            # If base was empty, candidate is " - Mode".
+            # If base was "Doe", candidate is "Doe - Mode".
+
+            new_last = candidate
+            updated = True
+
+        if updated:
+            # Telethon's UpdateProfileRequest arguments are optional.
+            # We must pass the ones we want to update.
+            await client(functions.account.UpdateProfileRequest(
+                first_name=new_first,
+                last_name=new_last
+            ))
+            logger.info(f"Updated Telegram profile to: {new_first} {new_last}")
+            state.last_updated_username = mode_name
+        else:
+            logger.info("Telegram profile already up to date.")
+            state.last_updated_username = mode_name
+
     except Exception as e:
         logger.error(f"Failed to update Telegram profile: {e}")
 
@@ -116,8 +157,6 @@ async def check_offline_status():
     while True:
         await asyncio.sleep(CHECK_INTERVAL)
         now = time.time()
-        # If we haven't received a heartbeat in HEARTBEAT_TIMEOUT seconds
-        # and we are not already OFFLINE
         if state.current_status != "OFFLINE" and (now - state.last_heartbeat > HEARTBEAT_TIMEOUT):
             logger.info("Heartbeat timeout. Switching to OFFLINE.")
             state.current_status = "OFFLINE"
@@ -127,6 +166,8 @@ async def check_offline_status():
 async def lifespan(app: FastAPI):
     # Startup
     await client.start()
+    # Trigger initial update? No, wait for event or heartbeat timeout.
+    state.last_heartbeat = time.time() # Reset heartbeat on start to give some grace
     asyncio.create_task(check_offline_status())
     yield
     # Shutdown
@@ -136,19 +177,13 @@ app = FastAPI(lifespan=lifespan)
 
 # Data Models
 class StatusUpdate(BaseModel):
-    network_type: str # "WIFI" or "MOBILE"
+    network_type: str
 
 @app.post("/heartbeat")
 async def heartbeat(request: Request, x_api_token: Optional[str] = Header(None)):
     if x_api_token != SERVER_API_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid API Token")
-
     state.last_heartbeat = time.time()
-
-    # If we were OFFLINE, we are back.
-    # But we don't know the network type yet unless we cached it or wait for /status.
-    # Usually the app sends /status immediately after connection.
-    # So /heartbeat just keeps us alive.
     return {"status": "ok", "mode": state.current_status}
 
 @app.post("/status")
@@ -157,7 +192,6 @@ async def update_status(update: StatusUpdate, x_api_token: Optional[str] = Heade
         raise HTTPException(status_code=401, detail="Invalid API Token")
 
     state.last_heartbeat = time.time()
-
     new_status = update.network_type.upper()
     if new_status not in ["WIFI", "MOBILE"]:
          raise HTTPException(status_code=400, detail="Invalid network type")
