@@ -31,10 +31,35 @@ Located in the `/backend` sector.
 ## Deployment Protocols
 
 ### Backend Core Initialization
-1.  Navigate to the `backend/` sector.
-2.  Install neural dependencies: `pip install -r requirements.txt`.
-3.  Calibrate environment variables (`API_ID`, `API_HASH`, etc.) in `.env`.
-4.  Ignite the core: Run the server.
+1.  **Navigate to the `backend/` sector**:
+    ```bash
+    cd backend
+    ```
+2.  **Initialize Virtual Environment & Install Dependencies**:
+    It is crucial to install the required Python modules (like `fastapi`, `uvicorn`, etc.) to prevent `ModuleNotFoundError`.
+    ```bash
+    # Create virtual environment (optional but recommended)
+    python3 -m venv venv
+    source venv/bin/activate  # On Windows use: venv\Scripts\activate
+
+    # Install neural dependencies
+    pip install -r requirements.txt
+    ```
+3.  **Calibrate Environment Variables**:
+    Create a `.env` file (copy from `.env.example`) and fill in your Telegram API credentials.
+    ```bash
+    cp .env.example .env
+    # Edit .env with your API_ID, API_HASH, etc.
+    ```
+4.  **Ignite the Core**:
+    Run the server using Python directly or via Uvicorn.
+    ```bash
+    # Direct launch
+    python3 main.py
+
+    # OR via Uvicorn (Production style)
+    uvicorn main:app --reload
+    ```
 
 ### Android Terminal Integration
 1.  Open the repository root in your Android Studio IDE.

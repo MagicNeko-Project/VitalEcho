@@ -5,6 +5,7 @@ import logging
 from typing import Optional
 from contextlib import asynccontextmanager
 
+import uvicorn
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -179,3 +180,7 @@ async def update_status(update: StatusUpdate, x_api_token: Optional[str] = Heade
 @app.get("/")
 async def root():
     return {"message": "VitalEcho Server Running", "current_mode": state.current_status}
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
