@@ -261,16 +261,26 @@ class NetworkMonitorService : Service() {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
-                isScreenOn = false
-                Log.d(TAG, "Screen OFF - Stopping Heartbeats")
-            } else if (intent?.action == Intent.ACTION_SCREEN_ON) {
-                isScreenOn = true
-                Log.d(TAG, "Screen ON - Resuming Heartbeats")
-                // Immediately check network state to ensure we are up to date
-                checkCurrentNetwork()
-                // Force a heartbeat immediately?
-                sendHeartbeat()
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> {
+                    isScreenOn = false
+                    lastReportedType = "" // Reset so next check sends update
+                    Log.d(TAG, "Screen OFF - Stopping Heartbeats")
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    isScreenOn = true
+                    Log.d(TAG, "Screen ON - Resuming Heartbeats")
+                    checkCurrentNetwork()
+                    sendHeartbeat()
+                }
+                "com.vitalecho.ACTION_USER_ACTIVE" -> {
+                    if (!isScreenOn) {
+                        isScreenOn = true
+                        Log.d(TAG, "User Active - Resuming Heartbeats")
+                        checkCurrentNetwork()
+                        sendHeartbeat()
+                    }
+                }
             }
         }
     }
@@ -279,7 +289,12 @@ class NetworkMonitorService : Service() {
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction("com.vitalecho.ACTION_USER_ACTIVE")
         }
-        registerReceiver(screenReceiver, filter)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(screenReceiver, filter)
+        }
     }
 }
