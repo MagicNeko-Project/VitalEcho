@@ -1,0 +1,19 @@
+WARNING:VitalEcho:API_ID or API_HASH missing. Using Mock Telegram Client.
+INFO:     Started server process [2176]
+INFO:     Waiting for application startup.
+INFO:VitalEcho:Mock Telegram Client started.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56648 - "GET / HTTP/1.1" 200 OK
+INFO:VitalEcho:Network status changed to: MOBILE
+INFO:VitalEcho:Updated Telegram profile to: Action_Mode
+INFO:     127.0.0.1:37472 - "POST /status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37484 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57238 - "POST /heartbeat HTTP/1.1" 200 OK
+INFO:VitalEcho:Heartbeat timeout. Switching to OFFLINE.
+INFO:VitalEcho:Updated Telegram profile to: Offline_Mode
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:VitalEcho:Mock Telegram Client disconnected.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2176]
