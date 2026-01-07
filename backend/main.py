@@ -19,6 +19,8 @@ API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 SERVER_API_TOKEN = os.getenv("SERVER_API_TOKEN", "secret")
 BASE_NAME = os.getenv("BASE_NAME", "VitalEchoUser")
+HOST = os.getenv("HOST", "0.0.0.0")
+PORT = int(os.getenv("PORT", 8000))
 
 # Logging setup
 logging.basicConfig(level=logging.INFO)
@@ -183,4 +185,4 @@ async def root():
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host=HOST, port=PORT, reload=True)
