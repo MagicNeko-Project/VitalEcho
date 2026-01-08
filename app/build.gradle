@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId "com.vitalecho"
-        minSdk 23
+        minSdk 34
         targetSdk 34 // Upgrading targetSdk to ensure compatibility
         versionCode 1
         versionName "1.0"

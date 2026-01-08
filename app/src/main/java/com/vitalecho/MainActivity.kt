@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnOpenAccessibility.setOnClickListener {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            val intent = Intent(this, SetupWizardActivity::class.java)
             startActivity(intent)
         }
 
@@ -83,10 +83,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startServiceCompat(intent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        startForegroundService(intent)
     }
 }

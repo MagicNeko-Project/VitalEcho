@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="保活设置向导 (Keep Alive Setup)"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="1. 开启无障碍服务 (Enable Accessibility)"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_status_accessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Checking..."
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btn_setup_accessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="前往设置 (Go to Settings)"
+        android:layout_marginBottom="24dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="2. 忽略电池优化 (Ignore Battery Opt)"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_status_battery"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Checking..."
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btn_setup_battery"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="请求权限 (Request Permission)"
+        android:layout_marginBottom="24dp" />
+
+    <Button
+        android:id="@+id/btn_finish"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="完成 (Finish)" />
+
+</LinearLayout>
