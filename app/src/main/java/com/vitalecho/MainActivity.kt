@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         btnOpenAccessibility.setOnClickListener {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            val intent = Intent(this, SetupWizardActivity::class.java)
             startActivity(intent)
         }
 

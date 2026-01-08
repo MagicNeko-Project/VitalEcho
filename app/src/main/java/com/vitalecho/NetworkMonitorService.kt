@@ -134,6 +134,8 @@ class NetworkMonitorService : Service() {
             .build()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 14+ requires explicit type or at least compatible type.
+            // Explicitly setting it here matches the Manifest.
             startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
             startForeground(NOTIFICATION_ID, notification)
@@ -346,6 +348,9 @@ class NetworkMonitorService : Service() {
             addAction("com.vitalecho.ACTION_USER_ACTIVE")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // Android 13/14 requires specifying export state.
+            // RECEIVER_NOT_EXPORTED is safer for internal broadcasts, but ACTION_USER_ACTIVE comes from another component (AccessibilityService).
+            // Since they are in the same UID/process, NOT_EXPORTED works fine.
             registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         } else {
             registerReceiver(screenReceiver, filter)
