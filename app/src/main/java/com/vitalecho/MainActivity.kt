@@ -83,10 +83,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startServiceCompat(intent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        startForegroundService(intent)
     }
 }

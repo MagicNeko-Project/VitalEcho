@@ -116,15 +116,13 @@ class NetworkMonitorService : Service() {
     }
 
     private fun startForegroundServiceCompat() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "VitalEcho Network Monitor",
-                NotificationManager.IMPORTANCE_LOW
-            )
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "VitalEcho Network Monitor",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(channel)
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
@@ -133,13 +131,7 @@ class NetworkMonitorService : Service() {
             .setOngoing(true)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Android 14+ requires explicit type or at least compatible type.
-            // Explicitly setting it here matches the Manifest.
-            startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        startForeground(NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
@@ -174,30 +166,19 @@ class NetworkMonitorService : Service() {
     private fun checkCurrentNetwork() {
         if (!isAutoMode()) return
 
-        // Compat for activeNetwork
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val activeNetwork = connectivityManager.activeNetwork
-            if (activeNetwork != null) {
-                checkNetworkType(activeNetwork)
-            } else {
-                 // No active network
-            }
+        val activeNetwork = connectivityManager.activeNetwork
+        if (activeNetwork != null) {
+            checkNetworkType(activeNetwork)
         } else {
-            // For API 21-22, we use getAllNetworks or activeNetworkInfo (deprecated but valid)
-            // Or just rely on callbacks.
-            // Since minSdk is 23, we are safe with activeNetwork.
+             // No active network
         }
     }
 
     private fun checkNetworkType(network: Network) {
-        // Ensure we are checking the active default network to avoid race conditions
-        // where a secondary network (e.g. Cellular) updates while WiFi is primary.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val activeNetwork = connectivityManager.activeNetwork
-            if (activeNetwork != null && activeNetwork != network) {
-                // The callback network is not the active default network. Ignore.
-                return
-            }
+        val activeNetwork = connectivityManager.activeNetwork
+        if (activeNetwork != null && activeNetwork != network) {
+            // The callback network is not the active default network. Ignore.
+            return
         }
 
         val caps = connectivityManager.getNetworkCapabilities(network) ?: return
@@ -216,15 +197,7 @@ class NetworkMonitorService : Service() {
 
     private fun registerNetworkCallback() {
         connectivityManager = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-             connectivityManager.registerDefaultNetworkCallback(networkCallback)
-        } else {
-             val request = android.net.NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build()
-             connectivityManager.registerNetworkCallback(request, networkCallback)
-        }
+        connectivityManager.registerDefaultNetworkCallback(networkCallback)
     }
 
     private fun startHeartbeat() {
@@ -347,13 +320,10 @@ class NetworkMonitorService : Service() {
             addAction(Intent.ACTION_USER_PRESENT)
             addAction("com.vitalecho.ACTION_USER_ACTIVE")
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13/14 requires specifying export state.
-            // RECEIVER_NOT_EXPORTED is safer for internal broadcasts, but ACTION_USER_ACTIVE comes from another component (AccessibilityService).
-            // Since they are in the same UID/process, NOT_EXPORTED works fine.
-            registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(screenReceiver, filter)
-        }
+
+        // Android 13/14 requires specifying export state.
+        // RECEIVER_NOT_EXPORTED is safer for internal broadcasts, but ACTION_USER_ACTIVE comes from another component (AccessibilityService).
+        // Since they are in the same UID/process, NOT_EXPORTED works fine.
+        registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
     }
 }

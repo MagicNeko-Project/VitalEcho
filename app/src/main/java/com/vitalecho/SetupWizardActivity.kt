@@ -93,20 +93,15 @@ class SetupWizardActivity : AppCompatActivity() {
     }
 
     private fun isIgnoringBatteryOptimizations(): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            return powerManager.isIgnoringBatteryOptimizations(packageName)
-        }
-        return true // Before Marshmallow, this feature didn't exist in the same way
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        return powerManager.isIgnoringBatteryOptimizations(packageName)
     }
 
     private fun requestBatteryOptimization() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!isIgnoringBatteryOptimizations()) {
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
-                intent.data = Uri.parse("package:$packageName")
-                startActivity(intent)
-            }
+        if (!isIgnoringBatteryOptimizations()) {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            intent.data = Uri.parse("package:$packageName")
+            startActivity(intent)
         }
     }
 }

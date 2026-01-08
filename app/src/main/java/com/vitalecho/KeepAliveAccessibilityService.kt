@@ -44,11 +44,7 @@ class KeepAliveAccessibilityService : AccessibilityService() {
             // Passing a specific action or extra could distinguish this "keep-alive" ping
             serviceIntent.action = "ACTION_KEEP_ALIVE"
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
+            startForegroundService(serviceIntent)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start service from Accessibility", e)
         }
