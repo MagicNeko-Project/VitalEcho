@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.hardware.display.DisplayManager
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -16,6 +17,7 @@ import android.os.PowerManager
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.util.Log
+import android.view.Display
 import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -30,6 +32,7 @@ class NetworkMonitorService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private lateinit var connectivityManager: ConnectivityManager
     private lateinit var powerManager: PowerManager
+    private lateinit var displayManager: DisplayManager
     private lateinit var prefs: SharedPreferences
     @Volatile
     private var isScreenOn = true
@@ -58,7 +61,9 @@ class NetworkMonitorService : Service() {
         Log.d(TAG, "Service Created")
         prefs = getSharedPreferences("VitalEchoPrefs", Context.MODE_PRIVATE)
         powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-        isScreenOn = powerManager.isInteractive
+        displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
+
+        isScreenOn = isDeviceActive()
 
         registerScreenReceiver()
         startForegroundServiceCompat()
@@ -82,6 +87,32 @@ class NetworkMonitorService : Service() {
             }
         }
         return START_STICKY
+    }
+
+    /**
+     * Checks if the device is effectively active.
+     * Considers screen off, Doze (AOD), and Doze Suspend as inactive.
+     */
+    private fun isDeviceActive(): Boolean {
+        // First check basic interactivity
+        if (!powerManager.isInteractive) {
+            return false
+        }
+
+        // Double check display state for AOD/Doze scenarios
+        // Display.STATE_DOZE and STATE_DOZE_SUSPEND are considered "Interactive" false usually,
+        // but explicit check ensures we handle edge cases or race conditions where isInteractive might lag.
+        // Also helps with Android 14+ specific AOD handling.
+        val defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY)
+        return if (defaultDisplay != null) {
+            when (defaultDisplay.state) {
+                Display.STATE_ON, Display.STATE_VR -> true
+                Display.STATE_OFF, Display.STATE_DOZE, Display.STATE_DOZE_SUSPEND -> false
+                else -> powerManager.isInteractive // Fallback for unknown states
+            }
+        } else {
+            powerManager.isInteractive
+        }
     }
 
     private fun startForegroundServiceCompat() {
@@ -197,8 +228,9 @@ class NetworkMonitorService : Service() {
     private fun startHeartbeat() {
         scope.launch {
             while (isActive) {
-                // Only send heartbeat if screen is ON.
-                // If screen is OFF for a long time (Backend Timeout), Backend will switch to Offline Mode.
+                // Only send heartbeat if device is explicitly active (screen on / unlocked / VR).
+                // If screen is OFF or in AOD (Doze), we stop heartbeats.
+                // This allows the backend to eventually transition to Offline Mode.
                 if (isScreenOn) {
                     sendHeartbeat()
                 }
@@ -261,32 +293,46 @@ class NetworkMonitorService : Service() {
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            // Re-evaluate active state on any signal
+            val active = isDeviceActive()
+
             when (intent?.action) {
                 Intent.ACTION_SCREEN_OFF -> {
-                    isScreenOn = false
+                    // Even if we just got SCREEN_OFF, double check state
+                    isScreenOn = false // Generally false if this intent fires
                     lastReportedType = "" // Reset so next check sends update
-                    Log.d(TAG, "Screen OFF - Stopping Heartbeats")
+                    Log.d(TAG, "Screen OFF (Intent) - Stopping Heartbeats")
                 }
                 Intent.ACTION_SCREEN_ON -> {
-                    isScreenOn = true
-                    Log.d(TAG, "Screen ON - Resuming Heartbeats")
-                    checkCurrentNetwork()
-                    sendHeartbeat()
+                    // SCREEN_ON doesn't mean unlocked or interactive in all cases (like Keyguard),
+                    // but usually starts the process.
+                    // However, we rely on isDeviceActive() to filter out Doze/AOD false positives if any.
+                    isScreenOn = active
+                    Log.d(TAG, "Screen ON (Intent) - State: $active")
+                    if (active) {
+                        checkCurrentNetwork()
+                        sendHeartbeat()
+                    }
                 }
                 Intent.ACTION_USER_PRESENT -> {
-                    isScreenOn = true
+                    isScreenOn = true // User present implies active
                     Log.d(TAG, "User Present - Resuming Heartbeats")
                     checkCurrentNetwork()
                     sendHeartbeat()
                 }
                 "com.vitalecho.ACTION_USER_ACTIVE" -> {
-                    if (!isScreenOn) {
+                    // Received from Accessibility Service or other triggers
+                    val actuallyActive = isDeviceActive()
+                    if (actuallyActive) {
                         isScreenOn = true
-                        Log.d(TAG, "User Active - Resuming Heartbeats")
+                        Log.d(TAG, "User Active (Broadcast) - Resuming Heartbeats")
                         sendHeartbeat()
+                        checkCurrentNetwork()
+                    } else {
+                         // This might happen if accessibility event fires but screen is effectively dozing?
+                         // Unlikely, but safe to check.
+                         Log.d(TAG, "User Active Broadcast received but device is not active")
                     }
-                    // Always check network to ensure status is correct (e.g. recovering from offline)
-                    checkCurrentNetwork()
                 }
             }
         }
