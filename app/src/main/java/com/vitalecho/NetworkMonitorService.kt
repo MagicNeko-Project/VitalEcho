@@ -273,13 +273,20 @@ class NetworkMonitorService : Service() {
                     checkCurrentNetwork()
                     sendHeartbeat()
                 }
+                Intent.ACTION_USER_PRESENT -> {
+                    isScreenOn = true
+                    Log.d(TAG, "User Present - Resuming Heartbeats")
+                    checkCurrentNetwork()
+                    sendHeartbeat()
+                }
                 "com.vitalecho.ACTION_USER_ACTIVE" -> {
                     if (!isScreenOn) {
                         isScreenOn = true
                         Log.d(TAG, "User Active - Resuming Heartbeats")
-                        checkCurrentNetwork()
                         sendHeartbeat()
                     }
+                    // Always check network to ensure status is correct (e.g. recovering from offline)
+                    checkCurrentNetwork()
                 }
             }
         }
@@ -289,6 +296,7 @@ class NetworkMonitorService : Service() {
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
             addAction("com.vitalecho.ACTION_USER_ACTIVE")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
