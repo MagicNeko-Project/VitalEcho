@@ -41,6 +41,7 @@ class SystemState:
     last_heartbeat: float = 0
     current_status: str = STATUS_OFFLINE
     last_updated_username: str = ""
+    is_manual: bool = False
 
 state = SystemState()
 
@@ -124,7 +125,8 @@ async def check_offline_status():
     while True:
         await asyncio.sleep(CHECK_INTERVAL)
         now = time.time()
-        if state.current_status != STATUS_OFFLINE and (now - state.last_heartbeat > HEARTBEAT_TIMEOUT):
+        # If in manual mode, do not auto-switch to offline on timeout
+        if not state.is_manual and state.current_status != STATUS_OFFLINE and (now - state.last_heartbeat > HEARTBEAT_TIMEOUT):
             logger.info("Heartbeat timeout. Switching to OFFLINE.")
             state.current_status = STATUS_OFFLINE
             await update_telegram_username(STATUS_OFFLINE)
@@ -144,6 +146,7 @@ app = FastAPI(lifespan=lifespan)
 # Data Models
 class StatusUpdate(BaseModel):
     network_type: str
+    is_manual: bool = False
 
 @app.post("/heartbeat")
 async def heartbeat(request: Request, x_api_token: Optional[str] = Header(None)):
@@ -172,10 +175,17 @@ async def update_status(update: StatusUpdate, x_api_token: Optional[str] = Heade
     elif raw_status == "OFFLINE": new_status = STATUS_OFFLINE
     # Else assume it is already Chinese or valid
 
+    # Update manual status
+    state.is_manual = update.is_manual
+
     if state.current_status != new_status:
         state.current_status = new_status
         logger.info(f"Network status changed to: {new_status}")
         await update_telegram_username(new_status)
+    elif state.is_manual:
+         # Even if status didn't change, we might have switched to manual mode.
+         # Ensure we log or handle if needed.
+         pass
 
     return {"status": "updated", "mode": state.current_status}
 

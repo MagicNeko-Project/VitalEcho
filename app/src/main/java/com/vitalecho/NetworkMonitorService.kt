@@ -84,6 +84,11 @@ class NetworkMonitorService : Service() {
                     // Re-check network immediately
                      checkCurrentNetwork()
                 }
+                "ACTION_MANUAL" -> {
+                    if (lastReportedType.isNotEmpty()) {
+                        sendStatusUpdate(lastReportedType)
+                    }
+                }
             }
         }
         return START_STICKY
@@ -218,7 +223,8 @@ class NetworkMonitorService : Service() {
     private fun sendStatusUpdate(type: String) {
         scope.launch {
             try {
-                val json = "{\"network_type\": \"$type\"}"
+                val isManual = !isAutoMode()
+                val json = "{\"network_type\": \"$type\", \"is_manual\": $isManual}"
                 val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
                 val request = Request.Builder()
                     .url("$SERVER_URL/status")
