@@ -206,7 +206,8 @@ class NetworkMonitorService : Service() {
                 // Only send heartbeat if device is explicitly active (screen on / unlocked / VR).
                 // If screen is OFF or in AOD (Doze), we stop heartbeats.
                 // This allows the backend to eventually transition to Offline Mode.
-                if (isScreenOn) {
+                // EXCEPTION: In Manual Mode, we want to maintain the status regardless of screen state.
+                if (isScreenOn || !isAutoMode()) {
                     sendHeartbeat()
                 }
                 delay(HEARTBEAT_INTERVAL)
