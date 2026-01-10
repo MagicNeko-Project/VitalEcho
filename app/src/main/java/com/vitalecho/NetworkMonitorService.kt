@@ -84,6 +84,11 @@ class NetworkMonitorService : Service() {
                     // Re-check network immediately
                      checkCurrentNetwork()
                 }
+                "ACTION_MANUAL" -> {
+                    if (lastReportedType.isNotEmpty()) {
+                        sendStatusUpdate(lastReportedType)
+                    }
+                }
             }
         }
         return START_STICKY
@@ -206,7 +211,8 @@ class NetworkMonitorService : Service() {
                 // Only send heartbeat if device is explicitly active (screen on / unlocked / VR).
                 // If screen is OFF or in AOD (Doze), we stop heartbeats.
                 // This allows the backend to eventually transition to Offline Mode.
-                if (isScreenOn) {
+                // EXCEPTION: In Manual Mode, we want to maintain the status regardless of screen state.
+                if (isScreenOn || !isAutoMode()) {
                     sendHeartbeat()
                 }
                 delay(HEARTBEAT_INTERVAL)
@@ -217,7 +223,8 @@ class NetworkMonitorService : Service() {
     private fun sendStatusUpdate(type: String) {
         scope.launch {
             try {
-                val json = "{\"network_type\": \"$type\"}"
+                val isManual = !isAutoMode()
+                val json = "{\"network_type\": \"$type\", \"is_manual\": $isManual}"
                 val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
                 val request = Request.Builder()
                     .url("$SERVER_URL/status")
