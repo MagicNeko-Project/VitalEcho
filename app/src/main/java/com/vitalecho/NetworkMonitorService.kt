@@ -50,6 +50,8 @@ class NetworkMonitorService : Service() {
         private const val HEARTBEAT_INTERVAL = 10000L // 10 seconds
         private const val CHANNEL_ID = "VitalEchoChannel"
         private const val NOTIFICATION_ID = 1
+        const val ACTION_SERVER_STATUS = "com.vitalecho.ACTION_SERVER_STATUS"
+        const val EXTRA_SERVER_ONLINE = "server_online"
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -257,12 +259,24 @@ class NetworkMonitorService : Service() {
                 client.newCall(request).execute().use { response ->
                      if (!response.isSuccessful) {
                         Log.e(TAG, "Failed to send heartbeat: ${response.code}")
+                        broadcastServerStatus(false)
+                    } else {
+                        broadcastServerStatus(true)
                     }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error sending heartbeat", e)
+                broadcastServerStatus(false)
             }
         }
+    }
+
+    private fun broadcastServerStatus(isOnline: Boolean) {
+        val intent = Intent(ACTION_SERVER_STATUS).apply {
+            setPackage(packageName)
+            putExtra(EXTRA_SERVER_ONLINE, isOnline)
+        }
+        sendBroadcast(intent)
     }
 
     override fun onDestroy() {
@@ -286,15 +300,13 @@ class NetworkMonitorService : Service() {
                     Log.d(TAG, "Screen OFF (Intent) - Stopping Heartbeats")
                 }
                 Intent.ACTION_SCREEN_ON -> {
-                    // SCREEN_ON doesn't mean unlocked or interactive in all cases (like Keyguard),
-                    // but usually starts the process.
-                    // However, we rely on isDeviceActive() to filter out Doze/AOD false positives if any.
-                    isScreenOn = active
-                    Log.d(TAG, "Screen ON (Intent) - State: $active")
-                    if (active) {
-                        checkCurrentNetwork()
-                        sendHeartbeat()
-                    }
+                    // SCREEN_ON 广播时立即恢复心跳
+                    // 不依赖 isDeviceActive() 因为此时屏幕状态可能尚未完全转换
+                    // AOD/Doze 状态下系统不会发送 ACTION_SCREEN_ON，所以这个处理是安全的
+                    isScreenOn = true
+                    Log.d(TAG, "Screen ON (Intent) - Resuming Heartbeats")
+                    checkCurrentNetwork()
+                    sendHeartbeat()
                 }
                 Intent.ACTION_USER_PRESENT -> {
                     isScreenOn = true // User present implies active

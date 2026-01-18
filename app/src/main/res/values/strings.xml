@@ -7,4 +7,7 @@
     <string name="status_standby">待机模式</string>
     <string name="status_offline">离线模式</string>
     <string name="service_running">服务正在运行...</string>
+    <string name="server_online">服务端在线 ✓</string>
+    <string name="server_offline">服务端离线 ✗</string>
+    <string name="server_checking">正在检测服务端...</string>
 </resources>
